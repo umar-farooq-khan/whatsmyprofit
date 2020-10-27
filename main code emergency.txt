@@ -1,0 +1,137 @@
+import pandas as pd
+
+# import socket
+# hostname = socket.gethostname()
+# IPAddr = socket.gethostbyname(hostname)
+
+# Import database module.
+from firebase_admin import db
+import firebase_admin
+from firebase_admin import credentials
+
+# cred = credentials.Certificate(r"C:\Users\umar\PycharmProjects\whatsmyprofit\jsonn.json")
+# firebase_admin.initialize_app(cred,{'databaseURL': 'https://scriptdontcopy.firebaseio.com/'})
+# # Get a database reference to our blog.
+# ref = db.reference(r'blog')
+# users_ref = ref.child('iphostname')
+# users_ref.set({
+#     u'id': str(hostname)+str(IPAddr)
+#
+# })
+# # Import database module.
+#
+# # Get a database reference to our posts
+# ref = db.reference('ifthisvalueisx/')
+#
+# # Read the data at the posts reference (this is a blocking operation)
+# jsondataa=ref.get()
+# import sys
+# if(jsondataa!="Run"):
+#     sys.exit()
+#
+#
+
+
+pathh=input("Enter Path of the files: ")
+dfstripe = pd.read_csv(pathh+"\stripe.csv",encoding='utf-8')
+paypaldf = pd.read_excel(pathh+"\paypal.xlsx",decimal="," ,thousands=' ')
+
+
+
+date=paypaldf.iloc[14:-2,0]   #date
+C=paypaldf.iloc[14:-2,2]   #C=2
+
+#
+#
+# def removespace(row):
+#      spllit=row.split(row)
+#      print(spllit[1])
+#     # strring=row.replace(' ','')
+#     # strring=row.replace(',','.')
+#     # #strring=float(strring)
+#     # print("after replacing: "+strring)
+#      return spllit[0]
+#C=C.apply(lambda row: C.replace(" ",""))
+#try:
+C=C.str.replace(",",".")
+
+C=C.str.replace("\s","")
+
+# except ValueError:
+#print("after repl")
+C=C.astype(float)
+
+
+D=paypaldf.iloc[14:-2,3]   #D=3
+#print(D)
+D=D.str.replace("\s","")
+D=D.str.replace(",",".")
+D=D.astype(float)
+
+F=paypaldf.iloc[14:-2,5]   #F=5
+#print(F)
+F=F.str.replace("\s","")
+F=F.str.replace(",",".")
+F=F.astype(float)
+
+G=paypaldf.iloc[14:-2,6]   #G=6
+G=G.str.replace("\s","")
+G=G.str.replace(",",".")
+G=G.astype(float)
+
+
+paypaldf['totalprofitpaypal']= C+D+F+G
+paypaldf=paypaldf.iloc[14:]    #deleted upper 14 rows
+#print("paypal required")
+paypaldf=paypaldf.iloc[:-2]
+#print(paypaldf)
+
+
+
+try:
+    dfstripe=dfstripe.set_index(pd.to_datetime(dfstripe['created_utc']))
+except KeyError:
+    dfstripe=dfstripe.set_index(pd.to_datetime(dfstripe['created']))
+
+dfstripe=dfstripe.resample('D').sum()
+dfstripe=dfstripe['net']
+
+dfstripe=dfstripe.iloc[::-1]
+
+paypaldf.to_csv(pathh+r"\temp_totalprofit_paypal.csv")
+dfstripe.to_csv(pathh+r"\temp_totalprofit_stripe.csv")
+
+
+
+newstripe = pd.read_csv(pathh+r"\temp_totalprofit_paypal.csv",encoding='utf-8')
+newpaypal = pd.read_csv(pathh+r"\temp_totalprofit_stripe.csv",encoding='utf-8')
+
+appended=pd.concat([newpaypal,newstripe] , axis=1,ignore_index=False)
+appended['PayP+Stripe']=appended['net']+appended['totalprofitpaypal']
+#print("iloc")
+import requests
+r =requests.get('http://api.nbp.pl/api/exchangerates/rates/A/USD?format=json').json()
+exchangerate=r['rates'][0]['mid']
+print("Exchange rate now: "+ str(exchangerate))
+
+
+def multiplyit(row):
+    in_pln= float(row*exchangerate)
+    return in_pln
+
+appended['PLN']= appended.apply(lambda row: multiplyit(row['PayP+Stripe']), axis=1)
+
+#print(appended['PLN'])
+
+
+#appended['PL']=
+appended.to_csv(pathh+r"\Netprofit.csv")
+
+import os
+os.remove(pathh+r"\temp_totalprofit_paypal.csv")
+os.remove(pathh+r"\temp_totalprofit_stripe.csv")
+nownewdf = pd.read_csv(pathh+r"\Netprofit.csv",usecols=['created_utc','net','totalprofitpaypal','PayP+Stripe','PLN'],encoding='utf-8')
+
+nownewdf.to_csv(pathh+r"\finalproduct.csv")
+print("File Successfully made on your specified path")
+os.remove(pathh+r"\Netprofit.csv")
